@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="GBK"?>
+<!DOCTYPE sqlMapConfig
+PUBLIC "-//ibatis.apache.org//DTD SQL Map Config 2.0//EN"
+"http://ibatis.apache.org/dtd/sql-map-config-2.dtd">
+<sqlMapConfig>
+  <!-- useStatementNamespaces: 如果启用本属性，必须使用全限定名来引用  例如： queryForObject("sqlMapName.statementName");  缺省值：false（禁用）-->
+  <!-- cacheModelsEnabled: 全局性地启用或禁用 SqlMapClient的所有缓存 缺省值：true（启用） -->
+  <!-- enhancementEnabled:全局性地启用或禁用运行时字节码增强，以优化访问Java Bean属性的性能，同时优化延迟加载的性能。 缺省值：false（禁用）-->
+  <!-- lazyLoadingEnabled:全局性地启用或禁用SqlMapClient的所有延迟加载。缺省值：true（启用）-->
+  <!-- maxRequests: 同时执行 SQL 语句的最大线程数。大于这个值的线程将阻塞直到另一个线程执行完成。不同的 DBMS有不同的限制值，但任何数据库都有这些限制。
+  	通常这个值应该至少是maxTransactions的 10 倍，并且总 是大于  maxSessions 和maxTranactions。减小这个参数值通常能提高性能。 缺省值：512  -->
+  <!-- maxSessions:同一时间内活动的最大 session 数。一个 session 可以是代码请求的显式 session，也可以是当线程使用SqlMapClient 实例（即执行一条语句）自动获得的session。
+  它应该总是大于或等于 maxTransactions 并小于 maxRequests。减小这个参数值通常能减少内存使用  缺省值：128 -->
+  <!-- 同时进入 SqlMapClient.startTransaction()的最大线程数。大于这个值的线程将阻塞直到另一个线程退出。不同的 DBMS 有不同的限制值，但任何数据库都有这些限制。
+              这个参数值应该总是小于或等于maxSessions 并总是远远小于  maxRequests。减小这个参数值通常能提高性能。  -->
+
+	<properties resource="jdbc.properties" />
+	<settings 
+		useStatementNamespaces="true" 
+		cacheModelsEnabled="true"
+		enhancementEnabled="true" 
+		lazyLoadingEnabled="true" 
+		maxRequests="64"
+		maxSessions="20" 
+		maxTransactions="10" />
+	<transactionManager type="JDBC">
+		<dataSource type="SIMPLE">
+			<property name="JDBC.Driver" value="${driverClass}" />
+			<property name="JDBC.ConnectionURL" value="${jdbcUrl}" />
+			<property name="JDBC.Username" value="${user}" />
+			<property name="JDBC.Password" value="${password}" />
+		</dataSource>
+	</transactionManager>
+	
+	<sqlMap resource="org/guo/ibatis/dao/sqlmap/User.xml" />
+</sqlMapConfig>

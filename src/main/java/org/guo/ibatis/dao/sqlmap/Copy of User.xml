@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd" >
+<sqlMap namespace="user">
+	<parameterMap  class="org.guo.ibatis.dao.po.User" id="userParam">
+		<parameter property="id" />
+		<parameter property="name"/>
+		<parameter property="sex"/>
+		<parameter property="age"/>
+		<parameter property="title"/>
+		<parameter property="phone"/>
+		<parameter property="address"/>
+	</parameterMap>
+	
+	<!-- 使用外联方式插入用户 -->
+	<insert id="insertUserOutLine" parameterMap="userParam">
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			?,?,?,?,?,?,?
+		)
+	</insert>
+	
+	
+	<!-- 插入一条数据并返回自增长的主键 -->
+	<insert id="insertAndGetPk" parameterMap="fullParamDef" parameterClass="org.guo.bbs.ibatis.dao.po.User">
+		
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			?,?,?,?,?,?,?
+		)
+		<!--selectKey标签必须放到 insert后面,这个顺序跟不同的数据库有关系.-->
+		<selectKey keyProperty="id" resultClass="int">
+			SELECT @@IDENTITY AS id
+		</selectKey>
+	</insert>
+	
+	
+	<!--Map的使用-->
+	<select id="getUser2Map" parameterClass="string" resultClass="hashmap">
+		select 
+			id,
+			name,
+			age,
+			title,
+			phone, 
+			address
+		from t_user
+	</select>
+	
+	<!--获取数据列表-->
+	<select id="getUserList" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select 
+			name,
+			age,
+			title,
+			phone, 
+			address
+		from t_user
+	</select>
+	
+	<!--用#做占位符 -->
+	<select id="getUserById01" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select 
+			name,
+			age,
+			title,
+			phone, 
+			address
+		from t_user where id = #value#
+	</select>
+	
+	<!--用$做占位符,注意：SQL注入问题(将直接替换value所代表的值) -->
+	<select id="getUserById02" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select 
+			name,
+			age,
+			title,
+			phone, 
+			address
+		from t_user where name like '%$value$%'
+	</select>
+	
+	<!-- 内联参数映射 -->
+	<insert id="insertUserWithInlineInfo" parameterClass="org.guo.bbs.ibatis.dao.po.User">
+		insert into t_user (
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			#name:varchar#,
+			#sex:int#,
+			#age:int#,
+			#title:varchar#,
+			#phone:varchar#,
+			#address:varchar#
+		)
+	</insert>
+	
+	<update id="updateUser" parameterClass="org.guo.bbs.ibatis.dao.po.User">
+		update t_user set sex = #sex# where id = #id#
+	</update>
+	
+	<delete id="deleteUser">
+		delete from t_user where id = #value#
+	</delete>
+	
+	<!--外部参数映射-->
+	<insert id="insertUserWithOutlineInfo" parameterMap="fullParamDef" parameterClass="org.guo.bbs.ibatis.dao.po.User" >
+		
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			?,?,?,?,?,?,?
+		)
+		<!--selectKey标签必须放到 insert后面,这个顺序跟不同的数据库有关系.-->
+		<selectKey keyProperty="id" resultClass="int">
+			SELECT @@IDENTITY AS id
+		</selectKey>
+	</insert>
+	
+	<sql id="select-count">
+		select count(*) from t_user
+	</sql>
+	
+	<sql id="select-where">
+		where sex = #value#
+	</sql>
+	
+	<select id="select-where-user" resultClass="int" parameterClass="int">
+		<include refid="select-count"/>
+		<include refid="select-where"/>
+	</select>
+	
+	<select id="select-dynamic-where" parameterClass="org.guo.bbs.ibatis.dao.po.User" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select * from t_user
+		<dynamic prepend="where" >
+		 	<isNull property="name">
+		 		name IS NULL
+		 	</isNull>
+		 	<isNotNull property="name">
+		 		name = #name#
+		 	</isNotNull>
+		 	</dynamic>
+	</select>
+	
+	<!-- 大于号  小于号 无法解析时,需要使用CDATA区 -->
+	<select id="select-dynamic-compare" parameterClass="org.guo.bbs.ibatis.dao.po.User" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select * from t_user
+		<dynamic prepend="where">
+			<isGreaterThan property="age" compareValue="30">
+				<![CDATA[age > 30]]>
+			</isGreaterThan>
+			
+			<isLessThan property="age" compareValue="30">
+				<![CDATA[age < 30]]>
+			</isLessThan>
+		</dynamic>
+	</select>
+	
+	<select id="select-dynamic-iterator" parameterClass="org.guo.bbs.ibatis.dao.po.User" resultClass="org.guo.bbs.ibatis.dao.po.User">
+		select * from t_user
+		<dynamic prepend="where title in " >
+			<iterate conjunction=" ," property="roles" open="(" close=")">
+				#roles[]#
+			</iterate>
+		</dynamic>
+	</select>
+	
+</sqlMap>

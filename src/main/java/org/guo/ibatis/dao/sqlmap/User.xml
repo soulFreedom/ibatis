@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd" >
+<sqlMap namespace="user">
+	
+	<!-- 在此处用typeAlias标签声明后，后面的标签可以直接使用user代替 包名 + 类名的写法 -->
+	<typeAlias alias="user" type="org.guo.ibatis.dao.po.User"/>
+	<typeAlias alias="director" type="org.guo.ibatis.dao.po.Director"/>
+	<typeAlias alias="actor" type="org.guo.ibatis.dao.po.Actor"/>
+
+	<parameterMap  class="user" id="userParam">
+		<parameter property="id" />
+		<parameter property="name"/>
+		<parameter property="sex"/>
+		<parameter property="age"/>
+		<parameter property="title"/>
+		<parameter property="phone"/>
+		<parameter property="address"/>
+	</parameterMap>
+	
+	<!--存储过程参数 -->
+	<parameterMap class="java.util.Map" id="proc_params" >  
+	    <parameter property="user_id"  javaType="java.lang.Integer" jdbcType="int" mode="IN"/>  
+	    <parameter property="user_age"  javaType="java.lang.Integer" jdbcType="int" mode="OUT"/>  
+	</parameterMap>  
+	
+	 <resultMap id="userResult" class="user" >
+		<result property="id" column="id"/>
+		<result property="name" column="name"/>
+		<result property="title" column="title"/>
+		<discriminator javaType="java.lang.String" column="title">
+			<!-- 经过测试, value的值如果是中文，无法匹配。 -->
+			<subMap value="b"  resultMap="director"/>
+			<subMap value="a" resultMap="actor"/>
+		</discriminator>
+	</resultMap> 
+	
+	<!-- po类 也必须继承user -->
+	<resultMap class="director" id="director" extends="userResult">
+		<result property="address" column="address"/>
+	</resultMap>
+	
+	<resultMap class="actor" id="actor" extends="userResult">
+		<result property="phone" column="phone"/>
+	</resultMap>
+	
+	<select id="getUserComplexSearch"  resultMap="userResult">
+		select * from bbs.t_user where id = #value#
+	</select>
+	
+	<!-- 调用带输入、输出参数的存储过程 (根据用户ID获取某用户的年龄)-->
+	<procedure id="p_getUserAgeUseID" parameterMap="proc_params">
+		{call age_from_user (?,?)}
+	</procedure>
+	
+	<!-- 拼装 where xxx in ('x','x')的效果; -->
+	<select id="getUsersUserInCondition_iterator" parameterClass="user" resultClass="org.guo.ibatis.dao.po.User">
+		select * from t_user
+		<dynamic prepend="where title in " >
+			<iterate conjunction=" ," property="roles" open="(" close=")">
+				#roles[]#
+			</iterate>
+		</dynamic>
+	</select>
+	
+	
+	<!-- 获取年龄在某一个区间的用户    大于号  小于号 无法解析时,需要使用CDATA区
+	如果只是根据User对象的age的值选择一个条件  大于 或者 小于 则 isLessThan 标签 prepend不用拼接 [and] 下面的写法实现的效果为 age >30 and age<40。这种情况下
+	需要把where 关键字写到标签外面，不能使用 dynamic标签，否则and 拼接不上，如果实现的效果为  age > 30  这种单个条件，这种用法就可以。
+	
+	 -->
+	<select id="getRangeAgeUsers"  parameterClass="user" resultClass="user">
+		select * from t_user  where
+		<!-- <dynamic prepend="where" >  -->
+			<!-- 如果希望一个属性无论为何值都符合条件则使用isPropertyAvailable,如果希望一个属性只是不为空的时候才符合条件就用isNotEmpty-->
+			<isPropertyAvailable property="phone" >
+				phone = '15111129011'
+			</isPropertyAvailable>
+			
+			<isGreaterThan property="age" compareValue="30" prepend="and">
+				<![CDATA[age > 30]]>
+			</isGreaterThan>
+			<isLessThan property="age" compareValue="40" prepend="and">
+				<![CDATA[age < 40 ]]>
+			</isLessThan>
+		<!-- </dynamic> -->
+	</select>
+	
+	<!--用$做占位符,注意：SQL注入问题(将直接替换value所代表的值) 比如我传入的字符串为： ' or name like ' 那么拼接后的
+	字符串就变成了： select * from bbs.t_user where name like '%' or name like '%' 会把所有的数据都查询出来。     
+	SQL注入问题： 例如：
+	某个网站的登录验证的SQL查询代码为
+	strSQL = "SELECT * FROM users WHERE (name = '" + userName + "') and (pw = '"+ passWord +"');" 如果恶意填入
+	userName = "' OR '1'='1"; 与 passWord = "' OR '1'='1"; 时，将导致原本的SQL字符串被填为
+	strSQL = "SELECT * FROM users WHERE (name = '' OR '1'='1') and (pw = '' OR '1'='1');"  这句SQL的效果跟下面是一样的===>
+	strSQL = "SELECT * FROM users;"，导致将所有的信息查询出来。
+	
+	Ibatis的#和$：
+	#:对应的是PreparedStatement的预编译模式，使用SetObject()方式，填充参数。 不会有SQL注入问题
+	$:对应的是Statement方式，直接替换相关字符串，会有SQL注入问题
+	
+	需要用到模糊查询的like就比较麻烦，而且可能会出现sql注入的情况。
+	假如需要查询用户名中带"sa"的用户，可能会这样来写sql select * from user where name like '%sa%'
+	但是在ibatis的xml中不能这样写，如果写成 select * from user where name like #%sa%#或者like %#sa#%是肯定不行的，会有报错。
+	有个很简单的办法，就是写成 select * from user where name like '%$name$%'
+	的样子，$符号会把参数原样嵌入sql语句中而不进行预编译，这就使得有可能出现sql注入攻击。其实ibatis从根本上简单的说，凡是#的，都作为参数，用set object() 方式预编译。
+	而$方式的，则直接替换字符串。 所以说，$很不安全，会把用户的输入直接当参数放入sql。
+	结论：最好不要用like来进行查询，1是因为效率低，2是因为在ibatis里使用是相当麻烦的，可读性很差，如果真的要用，不要使用$，而是使用#的like拼凑形式：
+	select * from bbs.t_user where name like concat('%', #name#, '%');
+	from t_user where name like '%$value$%'
+	-->
+	<select id="getUserLike" resultClass="org.guo.ibatis.dao.po.User">
+		select 
+			*
+		from bbs.t_user where name like concat('%', #name#, '%');
+	</select>
+	
+	
+	
+	<!--如果 关键字 where 不直接写到sql中 而是通过 <dynamic prepend=" where "> 来 拼接。那么后面的 where条件总是拼接
+	不上，目前没有找到原因.-->
+	<select id="getUser-dynamic-where" parameterClass="org.guo.ibatis.dao.po.User" resultClass="org.guo.ibatis.dao.po.User">
+		select * from t_user where
+			<isNotEmpty property="title"  >
+				title = #title#
+			</isNotEmpty>
+			<isNotEmpty prepend=" and " property="name" >
+				name = #name#
+			</isNotEmpty>
+	</select>
+	
+	<update id="updateUser" parameterClass="org.guo.ibatis.dao.po.User">
+		update bbs.t_user set name = #name#, title= #title# where id = #id#
+	</update>
+	
+	<!--删除数据，并返回影响的记录条数. -->
+	<delete id="delByUser" parameterClass="org.guo.ibatis.dao.po.User" >
+		delete from bbs.t_user where id = #id#
+	</delete>
+	
+	<!-- 根据响应的字段值查询对象，#value# 中间的值只是个占位符，可以随便写。 -->
+	<select id="getUserByUid" resultClass="org.guo.ibatis.dao.po.User" >
+		select * from bbs.t_user where id = #value#
+	</select>
+	
+	<!-- 查询数据 返回List<User> resultClass必须指定，否则查询成功，但不返回数据-->
+	<select id="getAllUsers" resultClass="org.guo.ibatis.dao.po.User">
+		select * from bbs.t_user
+	</select>
+	
+	<!-- 插入一条数据并返回自增长的主键 -->
+	<insert id="insertAndGetPk" parameterMap="userParam">
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			?,?,?,?,?,?,?
+		)
+		<!--01：selectKey标签必须放到 insert后面,这个顺序跟不同的数据库有关系.(不同的数据库生产商生成主键的方式不一样，有些是预先生成 (pre-generate)主键的，
+			       如Oracle和PostgreSQL。有些是事后生成(post-generate)主键的，如MySQL和SQL Server 所以如果是Oracle数据库，则需要将selectKey写在insert之前)
+			       
+			02：关于Ibatis返回自增主键，不同的数据库写法不同，以MYSQL为例，两种写法都可以.
+					SELECT last_insert_id() AS id，
+					SELECT @@IDENTITY AS id
+					
+			03: oracle:SELECT STOCKIDSEQUENCE.NEXTVAL AS VALUE FROM DUAL
+		-->
+		<selectKey keyProperty="id" resultClass="int">
+			SELECT last_insert_id() AS id
+		</selectKey>
+	</insert>
+	
+	<!-- 外联方式 -->
+	<insert id="insertUserOutLine" parameterMap="userParam">
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			?,?,?,?,?,?,?
+		)
+	</insert>
+	
+	<!-- 内联方式 -->
+	<insert id="insertUserInnerLine">
+		insert into t_user (
+			id,
+			name,
+			sex,
+			age,
+			title,
+			phone,
+			address
+		) values (
+			#id:int#,
+			#name:varchar#,
+			#sex:int#,
+			#age:int#,
+			#title:varchar#,
+			#phone:varchar#,
+			#address:varchar#
+		)
+	</insert>
+	
+	<!--批量插入 以插入两条记录为例：最终拼装的sql语句格式为 insert into bbs.t_user (name,sex,age,title,phone,address) values  (?,?,?,?,?,?) ,   (?,?,?,?,?,?)
+		需要注意的是  上句示例，两组参数之间 的 "," 是必须有的 所以iterator标签里conjunction属性的值必须制定为"," #[]代表是数组，有多组数据。  -->
+	<insert id="batchInsert" parameterClass="java.util.List" >
+	 insert into bbs.t_user (id,name,sex,age,title,phone,address) values
+		<iterate conjunction="," >
+			(#[].id#,#[].name#,#[].sex#,#[].age#,#[].title#,#[].phone#,#[].address#)
+		</iterate>
+	</insert>
+</sqlMap>
