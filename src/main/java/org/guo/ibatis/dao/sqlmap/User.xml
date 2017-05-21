@@ -163,9 +163,9 @@
 		<!--01：selectKey标签必须放到 insert后面,这个顺序跟不同的数据库有关系.(不同的数据库生产商生成主键的方式不一样，有些是预先生成 (pre-generate)主键的，
 			       如Oracle和PostgreSQL。有些是事后生成(post-generate)主键的，如MySQL和SQL Server 所以如果是Oracle数据库，则需要将selectKey写在insert之前)
 			       
-			02：关于Ibatis返回自增主键，不同的数据库写法不同，以MYSQL为例，两种写法都可以.
-					SELECT last_insert_id() AS id，
-					SELECT @@IDENTITY AS id
+			02：关于Ibatis返回自增主键，不同的数据库写法不同，以MYSQL为例: SELECT last_insert_id() AS id，
+				
+		    03: Microsoft SQL Server SELECT @@IDENTITY AS id
 					
 			03: oracle:SELECT STOCKIDSEQUENCE.NEXTVAL AS VALUE FROM DUAL
 		-->
